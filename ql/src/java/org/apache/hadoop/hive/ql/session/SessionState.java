@@ -19,11 +19,15 @@
 package org.apache.hadoop.hive.ql.session;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
@@ -122,7 +126,7 @@ public class SessionState {
 
   // This mapping collects all the configuration variables which have been set by the user
   // explicitely, either via SET in the CLI, the hiveconf option, or a System property.
-  // It is a mapping from the variable name to its value.  Note that if a user repeatedly
+  // It is a mapping from the variable name to its value. Note that if a user repeatedly
   // changes the value of a variable, the corresponding change will be made in this mapping.
   private Map<String, String> overriddenConfigurations;
 
@@ -159,7 +163,7 @@ public class SessionState {
   }
 
   public boolean getIsSilent() {
-    if(conf != null) {
+    if (conf != null) {
       return conf.getBoolVar(HiveConf.ConfVars.HIVESESSIONSILENT);
     } else {
       return isSilent;
@@ -167,7 +171,7 @@ public class SessionState {
   }
 
   public void setIsSilent(boolean isSilent) {
-    if(conf != null) {
+    if (conf != null) {
       conf.setBoolVar(HiveConf.ConfVars.HIVESESSIONSILENT, isSilent);
     }
     this.isSilent = isSilent;
@@ -196,11 +200,11 @@ public class SessionState {
     try {
       Class<?> pluginClass = Utilities.getBuiltinUtilsClass();
       URL jarLocation = pluginClass.getProtectionDomain().getCodeSource()
-        .getLocation();
+          .getLocation();
       add_builtin_resource(
-        ResourceType.JAR, jarLocation.toString());
+          ResourceType.JAR, jarLocation.toString());
       FunctionRegistry.registerFunctionsFromPluginJar(
-        jarLocation, pluginClass.getClassLoader());
+          jarLocation, pluginClass.getClassLoader());
     } catch (Exception ex) {
       throw new RuntimeException("Failed to load Hive builtin functions", ex);
     }
@@ -251,6 +255,7 @@ public class SessionState {
    * set current session to existing session object if a thread is running
    * multiple sessions - it must call this method with the new session object
    * when switching from one session to another.
+   *
    * @throws HiveException
    */
   public static SessionState start(SessionState startSs) {
@@ -283,7 +288,7 @@ public class SessionState {
 
     try {
       startSs.authenticator = HiveUtils.getAuthenticator(
-          startSs.getConf(),HiveConf.ConfVars.HIVE_AUTHENTICATOR_MANAGER);
+          startSs.getConf(), HiveConf.ConfVars.HIVE_AUTHENTICATOR_MANAGER);
       startSs.authorizer = HiveUtils.getAuthorizeProviderManager(
           startSs.getConf(), HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER,
           startSs.authenticator);
@@ -319,8 +324,8 @@ public class SessionState {
     return userid
         + "_"
         + String.format("%1$4d%2$02d%3$02d%4$02d%5$02d", gc.get(Calendar.YEAR),
-        gc.get(Calendar.MONTH) + 1, gc.get(Calendar.DAY_OF_MONTH), gc
-        .get(Calendar.HOUR_OF_DAY), gc.get(Calendar.MINUTE));
+            gc.get(Calendar.MONTH) + 1, gc.get(Calendar.DAY_OF_MONTH), gc
+                .get(Calendar.HOUR_OF_DAY), gc.get(Calendar.MINUTE));
   }
 
   /**
@@ -413,6 +418,52 @@ public class SessionState {
       _console = new LogHelper(LOG);
     }
     return _console;
+  }
+
+  /**
+   * Downloads the jar from HForge, populates the metadata
+   * and returns the local of the jar downloaded
+   *
+   * @param hForgeName
+   * @return
+   */
+  public static String downloadHForgeJar(String hForgeName) {
+    URL url = null;
+    ReadableByteChannel rbc = null;
+    FileOutputStream fos = null;
+    try {
+      String urlString = getUrl(hForgeName);
+      url = new URL(urlString);
+      rbc = Channels.newChannel(url.openStream());
+      String localDest = getLocalJar(hForgeName);
+      fos = new FileOutputStream(localDest);
+      fos.getChannel().transferFrom(rbc, 0, 1 << 24);
+    } catch (MalformedURLException e) {
+      return null;
+    } catch (IOException e) {
+      return null;
+    } finally {
+      try {
+        if (rbc != null) {
+          rbc.close();
+        }
+        if (fos != null) {
+          fos.close();
+        }
+      } catch (IOException e) {
+        // Can't do much if there was a problem closing
+      }
+    }
+    return null;
+  }
+
+  public static String getUrl(String hForgeName) {
+    return null;
+  }
+
+  public static String getLocalJar(String hForgeName) {
+    // TODO: Complete this
+    return null;
   }
 
   public static String validateFile(Set<String> curFiles, String newFile) {
@@ -514,6 +565,32 @@ public class SessionState {
       public boolean postHook(Set<String> cur, String s) {
         return true;
       }
+    }),
+
+    HFORGE(new ResourceHook() {
+      public String preHook(Set<String> cur, String hForgeName) {
+        String localJar = downloadHForgeJar(hForgeName);
+        if (localJar == null) {
+          return null;
+        }
+
+        String newJar = validateFile(cur, localJar);
+        if (newJar != null) {
+          return (registerJar(newJar) ? newJar : null);
+        }
+        else {
+          return null;
+        }
+      }
+
+      @Override
+      public boolean postHook(Set<String> cur, String hForgeName) {
+        String localJar = getLocalJar(hForgeName);
+        if (localJar == null) {
+          return false;
+        }
+        return unregisterJar(localJar);
+      }
     });
 
     public ResourceHook hook;
@@ -547,7 +624,7 @@ public class SessionState {
   }
 
   private final HashMap<ResourceType, Set<String>> resource_map =
-    new HashMap<ResourceType, Set<String>>();
+      new HashMap<ResourceType, Set<String>>();
 
   public String add_resource(ResourceType t, String value) {
     // By default don't convert to unix
@@ -591,7 +668,7 @@ public class SessionState {
   }
 
   /**
-   * Returns  true if it is from any external File Systems except local
+   * Returns true if it is from any external File Systems except local
    */
   public static boolean canDownloadResource(String value) {
     // Allow to download resources from any external FileSystem.
@@ -614,7 +691,7 @@ public class SessionState {
         postfix = destinationName.substring(index);
       }
       if (prefix.length() < 3) {
-        prefix += ".tmp";   // prefix should be longer than 3
+        prefix += ".tmp"; // prefix should be longer than 3
       }
 
       File resourceDir = new File(location);
