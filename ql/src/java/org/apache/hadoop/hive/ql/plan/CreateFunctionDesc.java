@@ -36,10 +36,20 @@ public class CreateFunctionDesc implements Serializable {
    */
   public CreateFunctionDesc() {
   }
-  
+
+  // Can manifest itself as upper case or lower case in the Hive query
+  private static final String HFORGE_PREFIX = "hforge:";
+  private static final int HFORGE_PREFIX_LEN = HFORGE_PREFIX.length();
+
   public CreateFunctionDesc(String functionName, String className) {
     this.functionName = functionName;
-    this.className = className;
+    if (className.substring(0, HFORGE_PREFIX_LEN).toLowerCase().equals(HFORGE_PREFIX)) {
+      String actualClassName = getClassName(className.substring(HFORGE_PREFIX_LEN));
+      this.className = actualClassName;
+    }
+    else {
+      this.className = className;
+    }
   }
 
   @Explain(displayName = "name")
@@ -58,6 +68,10 @@ public class CreateFunctionDesc implements Serializable {
 
   public void setClassName(String className) {
     this.className = className;
+  }
+
+  private String getClassName(String hForgeName) {
+    return null;
   }
 
 }
