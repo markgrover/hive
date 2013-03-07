@@ -23,7 +23,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.channels.ReadableByteChannel;
@@ -430,12 +429,13 @@ public class SessionState {
     URL url = null;
     ReadableByteChannel rbc = null;
     FileOutputStream fos = null;
+    String localDest = null;
     try {
       String urlString = getUrl(hForgeName);
       url = new URL(urlString);
       url.openConnection();
       InputStream is = url.openStream();
-      String localDest = getLocalJar(hForgeName);
+      localDest = getLocalJar(hForgeName);
       fos = new FileOutputStream(localDest);
 
       byte[] buffer = new byte[1 << 24];
@@ -449,8 +449,6 @@ public class SessionState {
       // String localDest = getLocalJar(hForgeName);
       // fos = new FileOutputStream(localDest);
       // fos.getChannel().transferFrom(rbc, 0, 1 << 24);
-    } catch (MalformedURLException e) {
-      return null;
     } catch (IOException e) {
       return null;
     } finally {
@@ -465,16 +463,62 @@ public class SessionState {
         // Can't do much if there was a problem closing
       }
     }
-    return null;
+    return localDest;
   }
 
   public static String getUrl(String hForgeName) {
-    return null;
+    String result = null;
+    
+    if (isValidHForgeName(hForgeName)) {
+      String urlForUrl = "http://172.22.2.117:3000/list/" + hForgeName + "/url";
+      URL url = null;
+      ReadableByteChannel rbc = null;
+      FileOutputStream fos = null;
+      try {
+        url = new URL(urlForUrl);
+        url.openConnection();
+        InputStream is = url.openStream();
+        byte[] buffer = new byte[1 << 24];
+        int bytesRead;
+        while ((bytesRead = is.read(buffer)) > 0) {
+          result = buffer.toString();
+        }
+        is.close();
+        // rbc = Channels.newChannel(url.openStream());
+        // String localDest = getLocalJar(hForgeName);
+        // fos = new FileOutputStream(localDest);
+        // fos.getChannel().transferFrom(rbc, 0, 1 << 24);
+      } catch (IOException e) {
+        return null;
+      } finally {
+        try {
+          if (rbc != null) {
+            rbc.close();
+          }
+          if (fos != null) {
+            fos.close();
+          }
+        } catch (IOException e) {
+          // Can't do much if there was a problem closing
+        }
+      }
+    }
+    return result;
   }
 
   public static String getLocalJar(String hForgeName) {
     // TODO: Complete this
     return null;
+  }
+
+  public static Boolean isValidHForgeName(String hForgeName) {
+
+    if (hForgeName == null || !hForgeName.contains("/")) {
+      return false;
+    }
+    else {
+      return true;
+    }
   }
 
   public static String validateFile(Set<String> curFiles, String newFile) {
