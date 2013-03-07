@@ -26,7 +26,6 @@ import java.io.PrintStream;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
-import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -434,10 +433,22 @@ public class SessionState {
     try {
       String urlString = getUrl(hForgeName);
       url = new URL(urlString);
-      rbc = Channels.newChannel(url.openStream());
+      url.openConnection();
+      InputStream is = url.openStream();
       String localDest = getLocalJar(hForgeName);
       fos = new FileOutputStream(localDest);
-      fos.getChannel().transferFrom(rbc, 0, 1 << 24);
+
+      byte[] buffer = new byte[1 << 24];
+      int bytesRead = 0;
+      while ((bytesRead = is.read(buffer)) > 0) {
+        fos.write(buffer, 0, bytesRead);
+      }
+      is.close();
+      fos.close();
+      // rbc = Channels.newChannel(url.openStream());
+      // String localDest = getLocalJar(hForgeName);
+      // fos = new FileOutputStream(localDest);
+      // fos.getChannel().transferFrom(rbc, 0, 1 << 24);
     } catch (MalformedURLException e) {
       return null;
     } catch (IOException e) {
