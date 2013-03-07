@@ -56,7 +56,7 @@ import org.apache.hadoop.hive.ql.util.DosToUnix;
 
 /**
  * SessionState encapsulates common data associated with a session.
- *
+ * 
  * Also provides support for a thread static session object that can be accessed
  * from any point in the code to interact with the user and to retrieve
  * configuration information
@@ -138,7 +138,7 @@ public class SessionState {
 
   /**
    * Get the lineage state stored in this session.
-   *
+   * 
    * @return LineageState
    */
   public LineageState getLineageState() {
@@ -238,7 +238,7 @@ public class SessionState {
 
   /**
    * Singleton Session object per thread.
-   *
+   * 
    **/
   private static ThreadLocal<SessionState> tss = new ThreadLocal<SessionState>();
 
@@ -254,7 +254,7 @@ public class SessionState {
    * set current session to existing session object if a thread is running
    * multiple sessions - it must call this method with the new session object
    * when switching from one session to another.
-   *
+   * 
    * @throws HiveException
    */
   public static SessionState start(SessionState startSs) {
@@ -309,7 +309,7 @@ public class SessionState {
 
   /**
    * get hiveHitsory object which does structured logging.
-   *
+   * 
    * @return The hive history object
    */
   public HiveHistory getHiveHistory() {
@@ -331,11 +331,11 @@ public class SessionState {
    * This class provides helper routines to emit informational and error
    * messages to the user and log4j files while obeying the current session's
    * verbosity levels.
-   *
+   * 
    * NEVER write directly to the SessionStates standard output other than to
    * emit result data DO use printInfo and printError provided by LogHelper to
    * emit non result data strings.
-   *
+   * 
    * It is perfectly acceptable to have global static LogHelper objects (for
    * example - once per module) LogHelper always emits info/error to current
    * session as required.
@@ -422,7 +422,7 @@ public class SessionState {
   /**
    * Downloads the jar from HForge, populates the metadata
    * and returns the local of the jar downloaded
-   *
+   * 
    * @param hForgeName
    * @return
    */
@@ -530,7 +530,7 @@ public class SessionState {
 
   /**
    * ResourceHook.
-   *
+   * 
    */
   public static interface ResourceHook {
     String preHook(Set<String> cur, String s);
@@ -540,7 +540,7 @@ public class SessionState {
 
   /**
    * ResourceType.
-   *
+   * 
    */
   public static enum ResourceType {
     FILE(new ResourceHook() {
