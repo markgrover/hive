@@ -18,7 +18,14 @@
 
 package org.apache.hadoop.hive.ql.plan;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
+import java.net.URL;
+import java.nio.channels.ReadableByteChannel;
+
+import org.apache.hadoop.hive.ql.session.SessionState;
 
 /**
  * CreateFunctionDesc.
@@ -71,7 +78,56 @@ public class CreateFunctionDesc implements Serializable {
   }
 
   private String getClassName(String hForgeName) {
-    return null;
+    String className = null;
+    if (isValidHForgeName(hForgeName)) {
+      String urlForClass = "http://172.22.2.117:3000/list/" + hForgeName + "/class";
+      URL url = null;
+      ReadableByteChannel rbc = null;
+      ByteArrayOutputStream baos = null;
+      try {
+        url = new URL(urlForClass);
+        url.openConnection();
+        InputStream is = url.openStream();
+        byte[] buffer = new byte[1 << 24];
+        int bytesRead;
+        // TODO: try to use the same buffer
+        baos = new ByteArrayOutputStream(1 << 24);
+        while ((bytesRead = is.read(buffer)) > 0) {
+          baos.write(buffer, 0, bytesRead);
+          className = baos.toString();
+          SessionState.getConsole().printInfo("Class is " + className);
+        }
+        is.close();
+        // rbc = Channels.newChannel(url.openStream());
+        // String localDest = getLocalJar(hForgeName);
+        // fos = new FileOutputStream(localDest);
+        // fos.getChannel().transferFrom(rbc, 0, 1 << 24);
+      } catch (IOException e) {
+        return null;
+      } finally {
+        try {
+          if (rbc != null) {
+            rbc.close();
+          }
+          if (baos != null) {
+            baos.close();
+          }
+        } catch (IOException e) {
+          // Can't do much if there was a problem closing
+        }
+      }
+    }
+    return className;
+  }
+
+  public static Boolean isValidHForgeName(String hForgeName) {
+
+    if (hForgeName == null || !hForgeName.contains("/")) {
+      return false;
+    }
+    else {
+      return true;
+    }
   }
 
 }

@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hive.ql.session;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -436,6 +437,7 @@ public class SessionState {
       url.openConnection();
       InputStream is = url.openStream();
       localDest = getLocalJar(hForgeName);
+      getConsole().printInfo("localDest is " + localDest);
       fos = new FileOutputStream(localDest);
 
       byte[] buffer = new byte[1 << 24];
@@ -468,20 +470,24 @@ public class SessionState {
 
   public static String getUrl(String hForgeName) {
     String result = null;
-    
+
     if (isValidHForgeName(hForgeName)) {
       String urlForUrl = "http://172.22.2.117:3000/list/" + hForgeName + "/url";
       URL url = null;
       ReadableByteChannel rbc = null;
-      FileOutputStream fos = null;
+      ByteArrayOutputStream baos = null;
       try {
         url = new URL(urlForUrl);
         url.openConnection();
         InputStream is = url.openStream();
         byte[] buffer = new byte[1 << 24];
         int bytesRead;
+        // TODO: try to use the same buffer
+        baos = new ByteArrayOutputStream(1 << 24);
         while ((bytesRead = is.read(buffer)) > 0) {
-          result = buffer.toString();
+          baos.write(buffer, 0, bytesRead);
+          result = baos.toString();
+          SessionState.getConsole().printInfo("URL to download is " + result);
         }
         is.close();
         // rbc = Channels.newChannel(url.openStream());
@@ -495,8 +501,8 @@ public class SessionState {
           if (rbc != null) {
             rbc.close();
           }
-          if (fos != null) {
-            fos.close();
+          if (baos != null) {
+            baos.close();
           }
         } catch (IOException e) {
           // Can't do much if there was a problem closing
@@ -507,8 +513,14 @@ public class SessionState {
   }
 
   public static String getLocalJar(String hForgeName) {
-    // TODO: Complete this
-    return null;
+    String[] splitName = hForgeName.split("/");
+    String dest = System.getProperty("user.home") + File.separator + ".hadoopforge" + File.separator
+        + StringUtils.join(splitName, File.separator) + ".jar";
+    File parent = new File(dest).getParentFile();
+    if (!parent.exists()) {
+      parent.mkdirs();
+    }
+    return dest;
   }
 
   public static Boolean isValidHForgeName(String hForgeName) {
@@ -624,6 +636,11 @@ public class SessionState {
 
     HFORGE(new ResourceHook() {
       public String preHook(Set<String> cur, String hForgeName) {
+        LogHelper console = SessionState.getConsole();
+        console.printInfo("hForgeName is " + hForgeName);
+        if (hForgeName.startsWith("'") && hForgeName.endsWith("'")) {
+          hForgeName = hForgeName.substring(1, hForgeName.length() - 1);
+        }
         String localJar = downloadHForgeJar(hForgeName);
         if (localJar == null) {
           return null;
